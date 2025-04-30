@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Turn based rpg</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 5px;
+            font-size: 14px;
+        }
+        #game-container {
+            max-width: 600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 8px;
+            height: 100vh;
+        }
+        #header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+        }
+        #stats {
+            background-color: #333;
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #player-btn {
+            padding: 8px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #map {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            background-color: #ddd;
+            padding: 2px;
+            border-radius: 5px;
+        }
+        .cell {
+            aspect-ratio: 1/1;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .cell img {
+            width: 80%;
+            height: 80%;
+            object-fit: contain;
+        }
+        .player { background-color: #4CAF50; }
+        .enemy { background-color: #f44336; }
+        .scroll { background-color: #FFD700; }
+        .merchant { background-color: #2196F3; }
+        
+        /* Боевой экран */
+        #battle-screen, #merchant-screen, #scroll-screen, #inventory-screen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.8);
+            z-index: 100;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .modal-content {
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            max-width: 500px;
+            margin: 20px auto;
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        /* Боевой интерфейс */
+        .battle-header {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .character {
+            text-align: center;
+        }
+        .character img {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+        }
+        .health-bar {
+            height: 8px;
+            background-color: #ddd;
+            border-radius: 4px;
+            margin: 3px 0;
+            overflow: hidden;
+        }
+        .health-fill {
+            height: 100%;
+            background-color: #4CAF50;
+        }
+        #battle-log {
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 5px;
+            margin: 8px 0;
+            background-color: #f9f9f9;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .log-entry {
+            margin-bottom: 3px;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #eee;
+        }
+        .battle-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .battle-section {
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .section-title {
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        .body-part {
+            padding: 6px;
+            margin: 3px 0;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        .body-part.selected {
+            background-color: #e3f2fd;
+            border-color: #2196F3;
+        }
+        .body-part.locked {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+        .body-part img {
+            width: 20px;
+            height: 20px;
+        }
+        #fight-button {
+            grid-column: 1 / -1;
+            padding: 8px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #fight-button:disabled {
+            background-color: #cccccc;
+        }
+        #fight-button.active {
+            background-color: #2196F3;
+        }
+        
+        /* Торговец */
+        #merchant-items {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .merchant-item {
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .merchant-item.sold-out {
+            opacity: 0.5;
+        }
+        .merchant-item img {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 3px;
+        }
+        .merchant-item button {
+            margin-top: 3px;
+            padding: 3px 6px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .merchant-item button:disabled {
+            background-color: #cccccc;
+        }
+        
+        /* Инвентарь */
+        #inventory-items {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .inventory-slot {
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .inventory-slot img {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 3px;
+        }
+        .inventory-slot button {
+            margin-top: 3px;
+            padding: 3px 6px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .equipped {
+            background-color: #e8f5e9;
+            border-color: #4CAF50;
+        }
+        
+        /* Сообщения */
+        #message {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            display: none;
+            z-index: 100;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        @media (max-width: 400px) {
+            #stats {
+                grid-template-columns: 1fr 1fr;
+            }
+            .battle-controls {
+                grid-template-columns: 1fr;
+            }
+            #merchant-items {
+                grid-template-columns: 1fr;
+            }
+            #inventory-items {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="header">
+            <div id="stats">
+                <div class="stat">
+                    <div>Уровень</div>
+                    <div id="level">1</div>
+                </div>
+                <div class="stat">
+                    <div>Здоровье</div>
+                    <div id="health">100/<span id="max-health">100</span></div>
+                </div>
+                <div class="stat">
+                    <div>Золото</div>
+                    <div id="gold">50</div>
+                </div>
+                <div class="stat">
+                    <div>Опыт</div>
+                    <div id="exp">0/<span id="exp-needed">50</span></div>
+                </div>
+            </div>
+            <button id="player-btn" onclick="showInventory()">Игрок</button>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div id="inventory">
+            <h3>Инвентарь:</h3>
+            <div id="inventory-items"></div>
+        </div>
+    </div>
+
+    <!-- Боевой экран -->
+    <div id="battle-screen">
+        <div class="modal-content">
+            <button class="close-btn" onclick="exitBattle()">×</button>
+            <div class="battle-header">
+                <div class="character">
+                    <img src="https://i.imgur.com/JYw0hHp.png" alt="Игрок">
+                    <div>Игрок <span id="player-level">1</span></div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="player-health-bar"></div>
+                    </div>
+                </div>
+                <div>VS</div>
+                <div class="character">
+                    <img src="https://i.imgur.com/3QZ2JQj.png" alt="Враг">
+                    <div>Враг <span id="enemy-level">1</span></div>
+                    <div class="health-bar">
+                        <div class="health-fill" id="enemy-health-bar"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="battle-log"></div>
+            
+            <div class="battle-controls">
+                <div class="battle-section">
+                    <div class="section-title">Атаковать:</div>
+                    <div class="body-part" id="attack-head" onclick="selectAttack('head')">
+                        <img src="https://i.imgur.com/5X3WZ1S.png" alt="Голова"> Голову
+                    </div>
+                    <div class="body-part" id="attack-torso" onclick="selectAttack('torso')">
+                        <img src="https://i.imgur.com/9yJQbZa.png" alt="Торс"> Торс
+                    </div>
+                    <div class="body-part" id="attack-arms" onclick="selectAttack('arms')">
+                        <img src="https://i.imgur.com/2QY3qJf.png" alt="Руки"> Руки
+                    </div>
+                    <div class="body-part" id="attack-legs" onclick="selectAttack('legs')">
+                        <img src="https://i.imgur.com/7WXkZ9G.png" alt="Ноги"> Ноги
+                    </div>
+                </div>
+                
+                <div class="battle-section">
+                    <div class="section-title">Защищать:</div>
+                    <div class="body-part" id="defend-head" onclick="selectDefend('head')">
+                        <img src="https://i.imgur.com/5X3WZ1S.png" alt="Голова"> Голову
+                    </div>
+                    <div class="body-part" id="defend-torso" onclick="selectDefend('torso')">
+                        <img src="https://i.imgur.com/9yJQbZa.png" alt="Торс"> Торс
+                    </div>
+                    <div class="body-part" id="defend-arms" onclick="selectDefend('arms')">
+                        <img src="https://i.imgur.com/2QY3qJf.png" alt="Руки"> Руки
+                    </div>
+                    <div class="body-part" id="defend-legs" onclick="selectDefend('legs')">
+                        <img src="https://i.imgur.com/7WXkZ9G.png" alt="Ноги"> Ноги
+                    </div>
+                </div>
+                
+                <button id="fight-button" disabled onclick="fight()">Бить!</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Торговец -->
+    <div id="merchant-screen">
+        <div class="modal-content">
+            <button class="close-btn" onclick="exitMerchant()">×</button>
+            <h2>Торговец</h2>
+            <div id="merchant-items">
+                <!-- Заполняется динамически -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Свиток -->
+    <div id="scroll-screen">
+        <div class="modal-content">
+            <button class="close-btn" onclick="exitScroll()">×</button>
+            <h2>Найденный свиток</h2>
+            <div id="scroll-content"></div>
+        </div>
+    </div>
+    
+    <!-- Инвентарь -->
+    <div id="inventory-screen">
+        <div class="modal-content">
+            <button class="close-btn" onclick="hideInventory()">×</button>
+            <h2>Инвентарь</h2>
+            <div id="inventory-modal-items"></div>
+        </div>
+    </div>
+
+    <div id="message"></div>
+
+    <script>
+        // Игровые переменные
+        const gameState = {
+            player: {
+                x: 0,
+                y: 0,
+                health: 100,
+                maxHealth: 100,
+                level: 1,
+                exp: 0,
+                gold: 50,
+                attack: 10,
+                defense: 5,
+                armor: {
+                    head: { equipped: false, value: 0, type: 'helmet' },
+                    torso: { equipped: false, value: 0, type: 'chestplate' },
+                    arms: { equipped: false, value: 0, type: 'bracers' },
+                    legs: { equipped: false, value: 0, type: 'leggings' }
+                },
+                inventory: [],
+                selectedAttack: null,
+                selectedDefend: null,
+                attackHistory: {}
+            },
+            enemies: [],
+            merchants: [],
+            scrolls: [],
+            mapSize: 10,
+            currentEnemy: null,
+            currentMerchant: null,
+            scrollMessages: [
+                "Сообщение из свитка 1",
+                "Сообщение из свитка 2",
+                "Сообщение из свитка 3",
+            ],
+            images: {
+                player: "Player.png",
+                enemy: "Enemy.png",
+                merchant: "merchant.png",
+                scroll: "scroll.png",
+                head: "https://i.imgur.com/5X3WZ1S.png",
+                torso: "https://i.imgur.com/9yJQbZa.png",
+                arms: "https://i.imgur.com/2QY3qJf.png",
+                legs: "https://i.imgur.com/7WXkZ9G.png",
+                helmet: "https://i.imgur.com/VpJgXqL.png",
+                chestplate: "https://i.imgur.com/mNQZ3Yj.png",
+                bracers: "https://i.imgur.com/Kv3qW9Z.png",
+                leggings: "https://i.imgur.com/7JQY3qJ.png"
+            },
+            merchantItems: [
+                { id: 'helmet', name: 'Шлем', part: 'head', value: 10, price: 30, image: 'helmet' },
+                { id: 'chestplate', name: 'Нагрудник', part: 'torso', value: 15, price: 40, image: 'chestplate' },
+                { id: 'bracers', name: 'Наручи', part: 'arms', value: 8, price: 25, image: 'bracers' },
+                { id: 'leggings', name: 'Поножи', part: 'legs', value: 12, price: 35, image: 'leggings' }
+            ],
+            lastAttack: null,
+            lastDefend: null
+        };
+
+        // Инициализация игры
+        function initGame() {
+            // Инициализация истории атак
+            for (const part of ['head', 'torso', 'arms', 'legs']) {
+                gameState.player.attackHistory[part] = 0;
+            }
+            
+            generateMap();
+            placeEnemies(5);
+            placeMerchants(2);
+            placeScrolls(3);
+            updateStats();
+            renderInventory();
+        }
+
+        // Генерация карты
+        function generateMap() {
+            const map = document.getElementById('map');
+            map.innerHTML = '';
+            
+            for (let y = 0; y < gameState.mapSize; y++) {
+                for (let x = 0; x < gameState.mapSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    
+                    if (x === gameState.player.x && y === gameState.player.y) {
+                        cell.classList.add('player');
+                        const img = document.createElement('img');
+                        img.src = gameState.images.player;
+                        img.alt = 'Игрок';
+                        cell.appendChild(img);
+                    } else {
+                        const enemy = gameState.enemies.find(e => e.x === x && e.y === y);
+                        const merchant = gameState.merchants.find(m => m.x === x && m.y === y);
+                        const scroll = gameState.scrolls.find(s => s.x === x && s.y === y);
+                        
+                        if (enemy) {
+                            cell.classList.add('enemy');
+                            const img = document.createElement('img');
+                            img.src = gameState.images.enemy;
+                            img.alt = 'Враг';
+                            cell.appendChild(img);
+                        } else if (merchant) {
+                            cell.classList.add('merchant');
+                            const img = document.createElement('img');
+                            img.src = gameState.images.merchant;
+                            img.alt = 'Торговец';
+                            cell.appendChild(img);
+                        } else if (scroll) {
+                            cell.classList.add('scroll');
+                            const img = document.createElement('img');
+                            img.src = gameState.images.scroll;
+                            img.alt = 'Свиток';
+                            cell.appendChild(img);
+                        }
+                    }
+                    
+                    cell.addEventListener('click', () => movePlayer(x, y));
+                    map.appendChild(cell);
+                }
+            }
+        }
+
+        // Размещение врагов
+        function placeEnemies(count) {
+            gameState.enemies = [];
+            for (let i = 0; i < count; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * gameState.mapSize);
+                    y = Math.floor(Math.random() * gameState.mapSize);
+                } while ((x === 0 && y === 0) || gameState.enemies.some(e => e.x === x && e.y === y));
+                
+                const level = Math.floor(Math.random() * gameState.player.level) + 1;
+                gameState.enemies.push({
+                    x,
+                    y,
+                    health: 50 + level * 10,
+                    maxHealth: 50 + level * 10,
+                    level,
+                    attack: 5 + level * 2,
+                    defense: 2 + level * 1,
+                    expReward: 20 + level * 5,
+                    goldReward: 10 + level * 3,
+                    attackHistory: {
+                        head: 0,
+                        torso: 0,
+                        arms: 0,
+                        legs: 0
+                    },
+                    defendHistory: {
+                        head: 0,
+                        torso: 0,
+                        arms: 0,
+                        legs: 0
+                    }
+                });
+            }
+        }
+
+        // Размещение торговцев
+        function placeMerchants(count) {
+            gameState.merchants = [];
+            for (let i = 0; i < count; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * gameState.mapSize);
+                    y = Math.floor(Math.random() * gameState.mapSize);
+                } while ((x === 0 && y === 0) || gameState.merchants.some(m => m.x === x && m.y === y));
+                
+                // Каждый торговец имеет случайный набор предметов
+                const items = [...gameState.merchantItems];
+                const merchantItems = [];
+                const itemCount = Math.min(4, Math.floor(Math.random() * 3) + 2); // 2-4 предмета
+                
+                for (let j = 0; j < itemCount; j++) {
+                    if (items.length === 0) break;
+                    const index = Math.floor(Math.random() * items.length);
+                    merchantItems.push({...items[index]});
+                    items.splice(index, 1);
+                }
+                
+                gameState.merchants.push({ 
+                    x, 
+                    y,
+                    items: merchantItems
+                });
+            }
+        }
+
+        // Размещение свитков
+        function placeScrolls(count) {
+            gameState.scrolls = [];
+            for (let i = 0; i < count; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * gameState.mapSize);
+                    y = Math.floor(Math.random() * gameState.mapSize);
+                } while ((x === 0 && y === 0) || gameState.scrolls.some(s => s.x === x && s.y === y));
+                
+                gameState.scrolls.push({ 
+                    x, 
+                    y,
+                    message: gameState.scrollMessages[Math.floor(Math.random() * gameState.scrollMessages.length)]
+                });
+            }
+        }
+
+        // Движение игрока
+        function movePlayer(x, y) {
+            // Проверка на допустимость хода (только соседние клетки)
+            if (Math.abs(x - gameState.player.x) > 1 || Math.abs(y - gameState.player.y) > 1) {
+                showMessage("Можно двигаться только на соседние клетки!");
+                return;
+            }
+            
+            // Проверка на выход за границы карты
+            if (x < 0 || x >= gameState.mapSize || y < 0 || y >= gameState.mapSize) {
+                showMessage("Нельзя выходить за границы карты!");
+                return;
+            }
+            
+            // Проверка на врага
+            const enemy = gameState.enemies.find(e => e.x === x && e.y === y);
+            if (enemy) {
+                gameState.currentEnemy = enemy;
+                startBattle();
+                return;
+            }
+            
+            // Проверка на торговца
+            const merchant = gameState.merchants.find(m => m.x === x && m.y === y);
+            if (merchant) {
+                gameState.currentMerchant = merchant;
+                startMerchant();
+                return;
+            }
+            
+            // Проверка на свиток
+            const scrollIndex = gameState.scrolls.findIndex(s => s.x === x && s.y === y);
+            if (scrollIndex !== -1) {
+                showScroll(gameState.scrolls[scrollIndex].message);
+                gameState.scrolls.splice(scrollIndex, 1);
+                return;
+            }
+            
+            // Обычное перемещение
+            gameState.player.x = x;
+            gameState.player.y = y;
+            showMessage(`Вы переместились на (${x}, ${y})`);
+            generateMap();
+        }
+
+        // Начало боя
+        function startBattle() {
+            document.getElementById('battle-screen').style.display = 'block';
+            
+            // Сброс выбранных атак и защит
+            resetBattleSelection();
+            
+            // Восстановление предыдущего выбора, если есть
+            if (gameState.lastAttack) {
+                selectAttack(gameState.lastAttack, true);
+            }
+            if (gameState.lastDefend) {
+                selectDefend(gameState.lastDefend, true);
+            }
+            
+            // Обновление информации о противнике
+            document.getElementById('enemy-level').textContent = gameState.currentEnemy.level;
+            updateHealthBars();
+            
+            addToBattleLog(`Начался бой с противником уровня ${gameState.currentEnemy.level}!`);
+        }
+
+        // Сброс выбора в бою
+        function resetBattleSelection() {
+            gameState.player.selectedAttack = null;
+            gameState.player.selectedDefend = null;
+            document.getElementById('fight-button').disabled = true;
+            document.getElementById('fight-button').classList.remove('active');
+            
+            // Сброс выделения кнопок
+            const attackParts = document.querySelectorAll('[id^="attack-"]');
+            attackParts.forEach(el => {
+                el.classList.remove('selected');
+                el.classList.remove('locked');
+            });
+            
+            const defendParts = document.querySelectorAll('[id^="defend-"]');
+            defendParts.forEach(el => {
+                el.classList.remove('selected');
+                el.classList.remove('locked');
+            });
+        }
+
+        // Обновление полос здоровья
+        function updateHealthBars() {
+            const playerHealthPercent = (gameState.player.health / gameState.player.maxHealth) * 100;
+            document.getElementById('player-health-bar').style.width = `${playerHealthPercent}%`;
+            
+            const enemyHealthPercent = (gameState.currentEnemy.health / gameState.currentEnemy.maxHealth) * 100;
+            document.getElementById('enemy-health-bar').style.width = `${enemyHealthPercent}%`;
+        }
+
+        // Добавление записи в лог боя
+        function addToBattleLog(message) {
+            const log = document.getElementById('battle-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Выбор атаки
+        function selectAttack(bodyPart, silent = false) {
+            // Сброс предыдущего выбора
+            const prevSelected = document.querySelector('.body-part[id^="attack-"].selected');
+            if (prevSelected) prevSelected.classList.remove('selected');
+            
+            gameState.player.selectedAttack = bodyPart;
+            gameState.lastAttack = bodyPart;
+            const attackElement = document.getElementById(`attack-${bodyPart}`);
+            attackElement.classList.add('selected');
+            
+            if (!silent) {
+                addToBattleLog(`Вы выбрали атаковать ${getBodyPartName(bodyPart)}.`);
+            }
+            
+            checkReadyToFight();
+        }
+
+        // Выбор защиты
+        function selectDefend(bodyPart, silent = false) {
+            // Сброс предыдущего выбора
+            const prevSelected = document.querySelector('.body-part[id^="defend-"].selected');
+            if (prevSelected) prevSelected.classList.remove('selected');
+            
+            gameState.player.selectedDefend = bodyPart;
+            gameState.lastDefend = bodyPart;
+            const defendElement = document.getElementById(`defend-${bodyPart}`);
+            defendElement.classList.add('selected');
+            
+            if (!silent) {
+                addToBattleLog(`Вы выбрали защищать ${getBodyPartName(bodyPart)}.`);
+            }
+            
+            checkReadyToFight();
+        }
+
+        // Проверка готовности к бою
+        function checkReadyToFight() {
+            if (gameState.player.selectedAttack && gameState.player.selectedDefend) {
+                document.getElementById('fight-button').disabled = false;
+                document.getElementById('fight-button').classList.add('active');
+            } else {
+                document.getElementById('fight-button').classList.remove('active');
+            }
+        }
+
+        // Проведение боя
+        function fight() {
+            if (!gameState.player.selectedAttack || !gameState.player.selectedDefend) return;
+            
+            // Блокируем кнопки выбора
+            const attackParts = document.querySelectorAll('[id^="attack-"]');
+            attackParts.forEach(el => el.classList.add('locked'));
+            
+            const defendParts = document.querySelectorAll('[id^="defend-"]');
+            defendParts.forEach(el => el.classList.add('locked'));
+            
+            // 1. Игрок атакует
+            const playerAttackPart = gameState.player.selectedAttack;
+            gameState.player.attackHistory[playerAttackPart]++;
+            
+            // Выбор защиты врага (с учетом истории защит)
+            const enemyDefendPart = chooseEnemyDefend();
+            gameState.currentEnemy.defendHistory[enemyDefendPart]++;
+            
+            // Модификаторы урона для разных частей тела
+            const attackModifiers = {
+                'head': 1.5,
+                'torso': 1.2,
+                'arms': 0.9,
+                'legs': 0.8
+            };
+            
+            // Базовый урон игрока
+            let playerDamage = Math.max(1, gameState.player.attack - Math.floor(gameState.currentEnemy.defense / 2));
+            playerDamage = Math.floor(playerDamage * attackModifiers[playerAttackPart]);
+            
+            // Если враг защищает атакуемую часть тела
+            if (enemyDefendPart === playerAttackPart) {
+                addToBattleLog(`Враг защитил ${getBodyPartName(playerAttackPart)}! Ваша атака заблокирована.`);
+                playerDamage = 0;
+            } else {
+                // Учитываем броню врага (упрощенно)
+                playerDamage = Math.max(1, playerDamage - 2);
+                gameState.currentEnemy.health -= playerDamage;
+                addToBattleLog(`Вы ударили врага в ${getBodyPartName(playerAttackPart)} и нанесли ${playerDamage} урона!`);
+            }
+            
+            // 2. Проверяем, жив ли враг
+            if (gameState.currentEnemy.health <= 0) {
+                gameState.currentEnemy.health = 0;
+                updateHealthBars();
+                addToBattleLog("Вы победили врага!");
+                
+                const expReward = gameState.currentEnemy.expReward;
+                const goldReward = gameState.currentEnemy.goldReward;
+                
+                gameState.player.exp += expReward;
+                gameState.player.gold += goldReward;
+                
+                // Проверка повышения уровня
+                const expNeeded = gameState.player.level * 50;
+                if (gameState.player.exp >= expNeeded) {
+                    gameState.player.level++;
+                    gameState.player.exp -= expNeeded;
+                    gameState.player.maxHealth += 20;
+                    gameState.player.health = gameState.player.maxHealth;
+                    gameState.player.attack += 3;
+                    gameState.player.defense += 2;
+                    
+                    addToBattleLog(`Поздравляем! Вы достигли уровня ${gameState.player.level}!`);
+                }
+                
+                // Удаляем побежденного врага
+                const enemyIndex = gameState.enemies.findIndex(e => e === gameState.currentEnemy);
+                if (enemyIndex !== -1) {
+                    gameState.enemies.splice(enemyIndex, 1);
+                }
+                
+                addToBattleLog(`Получено ${expReward} опыта и ${goldReward} золота.`);
+                
+                // Обновляем статистику
+                updateStats();
+                
+                setTimeout(() => {
+                    exitBattle();
+                    generateMap();
+                    
+                    // Если врагов не осталось, генерируем новых
+                    if (gameState.enemies.length === 0) {
+                        placeEnemies(5 + gameState.player.level);
+                        showMessage("Новые противники появились на карте!");
+                        generateMap();
+                    }
+                }, 1500);
+                return;
+            }
+            
+            // 3. Враг атакует
+            const enemyAttackPart = chooseEnemyAttack();
+            gameState.currentEnemy.attackHistory[enemyAttackPart]++;
+            const playerDefendPart = gameState.player.selectedDefend;
+            
+            // Базовый урон врага
+            let enemyDamage = Math.max(1, gameState.currentEnemy.attack - Math.floor(gameState.player.defense / 2));
+            enemyDamage = Math.floor(enemyDamage * attackModifiers[enemyAttackPart]);
+            
+            // Если игрок защищает атакуемую часть тела
+            if (playerDefendPart === enemyAttackPart) {
+                addToBattleLog(`Вы защитили ${getBodyPartName(enemyAttackPart)}! Атака врага заблокирована.`);
+                enemyDamage = 0;
+            } else {
+                // Учитываем броню игрока
+                const armorProtection = gameState.player.armor[enemyAttackPart].value || 0;
+                enemyDamage = Math.max(1, enemyDamage - armorProtection);
+                gameState.player.health -= enemyDamage;
+                addToBattleLog(`Враг ударил вас в ${getBodyPartName(enemyAttackPart)} и нанес ${enemyDamage} урона!`);
+            }
+            
+            // 4. Проверяем, жив ли игрок
+            if (gameState.player.health <= 0) {
+                gameState.player.health = 0;
+                updateHealthBars();
+                addToBattleLog("Вы проиграли бой!");
+                
+                // Потеря золота при поражении
+                gameState.player.gold = Math.max(0, gameState.player.gold - 10);
+                gameState.player.health = Math.floor(gameState.player.maxHealth / 2);
+                
+                // Обновляем статистику
+                updateStats();
+                
+                setTimeout(() => {
+                    exitBattle();
+                    generateMap();
+                }, 1500);
+                return;
+            }
+            
+            // Обновляем статистику
+            updateHealthBars();
+            updateStats();
+            
+            // Разблокируем кнопку боя для следующего раунда
+            setTimeout(() => {
+                document.getElementById('fight-button').disabled = false;
+                document.getElementById('fight-button').classList.add('active');
+            }, 500);
+        }
+
+        // Выбор защиты врага (с учетом истории защит)
+        function chooseEnemyDefend() {
+            // Базовые вероятности (равные для всех частей тела)
+            let probabilities = {
+                head: 0.25,
+                torso: 0.25,
+                arms: 0.25,
+                legs: 0.25
+            };
+            
+            // Корректируем вероятности на основе истории атак игрока
+            const totalPlayerAttacks = Object.values(gameState.player.attackHistory).reduce((a, b) => a + b, 1);
+            probabilities.head += gameState.player.attackHistory.head / totalPlayerAttacks * 0.5;
+            probabilities.torso += gameState.player.attackHistory.torso / totalPlayerAttacks * 0.5;
+            probabilities.arms += gameState.player.attackHistory.arms / totalPlayerAttacks * 0.5;
+            probabilities.legs += gameState.player.attackHistory.legs / totalPlayerAttacks * 0.5;
+            
+            // Нормализуем вероятности
+            const sum = probabilities.head + probabilities.torso + probabilities.arms + probabilities.legs;
+            probabilities.head /= sum;
+            probabilities.torso /= sum;
+            probabilities.arms = probabilities.head + probabilities.torso + probabilities.arms / sum;
+            probabilities.legs = 1;
+            
+            const rand = Math.random();
+            if (rand < probabilities.head) return 'head';
+            if (rand < probabilities.torso) return 'torso';
+            if (rand < probabilities.arms) return 'arms';
+            return 'legs';
+        }
+
+        // Выбор атаки врага (с учетом истории атак)
+        function chooseEnemyAttack() {
+            // Базовые вероятности (голова - реже, но сильнее)
+            let probabilities = {
+                head: 0.2,
+                torso: 0.3,
+                arms: 0.25,
+                legs: 0.25
+            };
+            
+            // Корректируем на основе истории защит игрока
+            const totalDefends = Object.values(gameState.currentEnemy.defendHistory).reduce((a, b) => a + b, 1);
+            probabilities.head += (gameState.currentEnemy.defendHistory.head / totalDefends) * 0.3;
+            probabilities.torso += (gameState.currentEnemy.defendHistory.torso / totalDefends) * 0.3;
+            probabilities.arms += (gameState.currentEnemy.defendHistory.arms / totalDefends) * 0.2;
+            probabilities.legs += (gameState.currentEnemy.defendHistory.legs / totalDefends) * 0.2;
+            
+            // Нормализуем вероятности
+            const sum = probabilities.head + probabilities.torso + probabilities.arms + probabilities.legs;
+            probabilities.head /= sum;
+            probabilities.torso /= sum;
+            probabilities.arms = probabilities.head + probabilities.torso + probabilities.arms / sum;
+            probabilities.legs = 1;
+            
+            const rand = Math.random();
+            if (rand < probabilities.head) return 'head';
+            if (rand < probabilities.torso) return 'torso';
+            if (rand < probabilities.arms) return 'arms';
+            return 'legs';
+        }
+
+        // Получение названия части тела
+        function getBodyPartName(part) {
+            const names = {
+                'head': 'голову',
+                'torso': 'торс',
+                'arms': 'руки',
+                'legs': 'ноги'
+            };
+            return names[part];
+        }
+
+        // Выход из боя
+        function exitBattle() {
+            document.getElementById('battle-screen').style.display = 'none';
+            resetBattleSelection();
+        }
+
+        // Взаимодействие с торговцем
+        function startMerchant() {
+            const merchantItemsContainer = document.getElementById('merchant-items');
+            merchantItemsContainer.innerHTML = '';
+            
+            gameState.currentMerchant.items.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'merchant-item';
+                if (item.sold) itemElement.classList.add('sold-out');
+                
+                itemElement.innerHTML = `
+                    <img src="${gameState.images[item.image]}" alt="${item.name}">
+                    <div>${item.name} (${getBodyPartName(item.part)} +${item.value})</div>
+                    <div>${item.price} золота</div>
+                    <button onclick="buyItem('${item.id}')" ${item.sold ? 'disabled' : ''}>
+                        ${item.sold ? 'Продано' : 'Купить'}
+                    </button>
+                `;
+                
+                merchantItemsContainer.appendChild(itemElement);
+            });
+            
+            document.getElementById('merchant-screen').style.display = 'block';
+        }
+
+        // Покупка предмета
+        function buyItem(itemId) {
+            const merchantItem = gameState.currentMerchant.items.find(i => i.id === itemId);
+            if (!merchantItem || merchantItem.sold) return;
+            
+            if (gameState.player.gold >= merchantItem.price) {
+                gameState.player.gold -= merchantItem.price;
+                
+                // Добавляем предмет в инвентарь
+                gameState.player.inventory.push({
+                    type: merchantItem.id,
+                    part: merchantItem.part,
+                    value: merchantItem.value,
+                    image: merchantItem.image
+                });
+                
+                // Помечаем предмет как проданный
+                merchantItem.sold = true;
+                
+                showMessage(`Вы купили ${merchantItem.name} за ${merchantItem.price} золота.`);
+                updateStats();
+                renderInventory();
+                startMerchant(); // Обновляем экран торговца
+            } else {
+                showMessage("Недостаточно золота!");
+            }
+        }
+
+        // Выход от торговца
+        function exitMerchant() {
+            document.getElementById('merchant-screen').style.display = 'none';
+        }
+
+        // Просмотр свитка
+        function showScroll(message) {
+            document.getElementById('scroll-content').textContent = message;
+            document.getElementById('scroll-screen').style.display = 'block';
+        }
+
+        // Закрытие свитка
+        function exitScroll() {
+            document.getElementById('scroll-screen').style.display = 'none';
+        }
+
+        // Показать инвентарь
+        function showInventory() {
+            const inventoryContainer = document.getElementById('inventory-modal-items');
+            inventoryContainer.innerHTML = '';
+            
+            // Отображаем текущую экипировку
+            for (const part in gameState.player.armor) {
+                const slot = document.createElement('div');
+                slot.className = `inventory-slot ${gameState.player.armor[part].equipped ? 'equipped' : ''}`;
+                
+                slot.innerHTML = `
+                    <div>${getBodyPartName(part)}</div>
+                    <img src="${gameState.images[part]}" alt="${part}">
+                    <div>${gameState.player.armor[part].equipped ? `+${gameState.player.armor[part].value}` : 'Нет'}</div>
+                    ${gameState.player.armor[part].equipped ? 
+                        `<button onclick="unequipItem('${part}')">Снять</button>` : 
+                        '<div style="height:24px;"></div>'}
+                `;
+                
+                inventoryContainer.appendChild(slot);
+            }
+            
+            // Отображаем предметы в инвентаре
+            gameState.player.inventory.forEach((item, index) => {
+                const slot = document.createElement('div');
+                slot.className = 'inventory-slot';
+                
+                slot.innerHTML = `
+                    <div>${item.type}</div>
+                    <img src="${gameState.images[item.image]}" alt="${item.type}">
+                    <div>+${item.value} (${getBodyPartName(item.part)})</div>
+                    <button onclick="equipItem(${index})">Надеть</button>
+                `;
+                
+                inventoryContainer.appendChild(slot);
+            });
+            
+            document.getElementById('inventory-screen').style.display = 'block';
+        }
+
+        // Скрыть инвентарь
+        function hideInventory() {
+            document.getElementById('inventory-screen').style.display = 'none';
+        }
+
+        // Надеть предмет
+        function equipItem(itemIndex) {
+            const item = gameState.player.inventory[itemIndex];
+            const part = item.part;
+            
+            // Если уже что-то надето, возвращаем в инвентарь
+            if (gameState.player.armor[part].equipped) {
+                gameState.player.inventory.push({
+                    type: gameState.player.armor[part].type,
+                    part: part,
+                    value: gameState.player.armor[part].value,
+                    image: gameState.player.armor[part].type
+                });
+            }
+            
+            // Надеваем новый предмет
+            gameState.player.armor[part] = {
+                equipped: true,
+                value: item.value,
+                type: item.type
+            };
+            
+            // Удаляем предмет из инвентаря
+            gameState.player.inventory.splice(itemIndex, 1);
+            
+            showMessage(`Вы надели ${item.type} на ${getBodyPartName(part)}.`);
+            renderInventory();
+            showInventory(); // Обновляем экран инвентаря
+        }
+
+        // Снять предмет
+        function unequipItem(part) {
+            const item = gameState.player.armor[part];
+            
+            // Добавляем предмет в инвентарь
+            gameState.player.inventory.push({
+                type: item.type,
+                part: part,
+                value: item.value,
+                image: item.type
+            });
+            
+            // Снимаем предмет
+            gameState.player.armor[part] = {
+                equipped: false,
+                value: 0,
+                type: ''
+            };
+            
+            showMessage(`Вы сняли ${item.type} с ${getBodyPartName(part)}.`);
+            renderInventory();
+            showInventory(); // Обновляем экран инвентаря
+        }
+
+        // Отображение инвентаря в главном интерфейсе
+        function renderInventory() {
+            const inventory = document.getElementById('inventory-items');
+            inventory.innerHTML = '';
+            
+            let hasItems = false;
+            
+            for (const part in gameState.player.armor) {
+                if (gameState.player.armor[part].equipped) {
+                    hasItems = true;
+                    const item = document.createElement('div');
+                    item.className = 'inventory-item';
+                    
+                    item.innerHTML = `
+                        <img src="${gameState.images[part]}" alt="${part}">
+                        <span>${getBodyPartName(part)}: +${gameState.player.armor[part].value}</span>
+                    `;
+                    
+                    inventory.appendChild(item);
+                }
+            }
+            
+            if (!hasItems) {
+                inventory.innerHTML = '<div style="grid-column:1/-1;text-align:center;">Пусто</div>';
+            }
+        }
+
+        // Обновление статистики
+        function updateStats() {
+            document.getElementById('level').textContent = gameState.player.level;
+            document.getElementById('health').textContent = gameState.player.health;
+            document.getElementById('max-health').textContent = gameState.player.maxHealth;
+            document.getElementById('gold').textContent = gameState.player.gold;
+            document.getElementById('exp').textContent = gameState.player.exp;
+            document.getElementById('exp-needed').textContent = gameState.player.level * 50;
+        }
+
+        // Отображение сообщений
+        function showMessage(msg) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = msg;
+            messageEl.style.display = 'block';
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 3000);
+        }
+
+        // Запуск игры при загрузке страницы
+        window.onload = initGame;
+    </script>
+</body>
+</html>
